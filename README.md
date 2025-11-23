@@ -21,7 +21,7 @@ All data is stored locally in the browser, allowing full CRUD functionality with
 
 #### 🌐 Repository
 
-👉 [https://github.com/eduardoguzman2244/new_netflix](https://github.com/eduardoguzman2244/new_netflix)
+👉 [https://github.com/eduardoguzman2244/new_netflix](https://github.com/eduardoguzman2244/newnetflix)
 
 ---
 

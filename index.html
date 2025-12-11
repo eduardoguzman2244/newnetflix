@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My Netflix</title>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@10/swiper-bundle.min.css" />
+    <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+
+    <h1>🎬 My Netflix</h1>
+    
+    <!-- Top Navigation like Netflix -->
+    <nav class="top-nav">
+        <a href="#home" class="nav-link active" data-slide="0" navigation-type="home" animation-type="fade">Home</a>
+        <a href="#movies" class="nav-link" data-slide="1" navigation-type="movies" animation-type="slide-up">Movies</a>
+        <a href="#profile" class="nav-link" data-slide="2" navigation-type="profile" animation-type="zoom">Profile</a>
+    </nav>
+
+    <div class="swiper">
+        <div class="swiper-wrapper">
+            <!-- HOME SECTION -->
+            <section class="swiper-slide" id="slide-home">
+                <div class="hero-section animate-in">
+                    <h2>Welcome to My Netflix</h2>
+                    <p>Your personal movie collection manager</p>
+                    <div class="hero-stats">
+                        <div class="stat-card">
+                            <span class="stat-number" id="total-movies">0</span>
+                            <span class="stat-label">Movies in Library</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-number" id="total-favorites">0</span>
+                            <span class="stat-label">Favorites</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-number" id="total-keywords">0</span>
+                            <span class="stat-label">Keywords Saved</span>
+                        </div>
+                    </div>
+                    <div class="quick-actions">
+                        <button class="hero-btn go-movies" navigation-type="movies" animation-type="slide-up">🎬 Browse Movies</button>
+                        <button class="hero-btn go-search" navigation-type="search" animation-type="cascade">🔍 Search TMDb</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- MOVIES SECTION -->
+            <section class="swiper-slide" id="slide-movies">
+                <div id="movies-content"></div>
+            </section>
+
+            <!-- PROFILE SECTION -->
+            <section class="swiper-slide" id="slide-profile">
+                <div class="profile-container animate-in">
+                    <h2>Your Profile</h2>
+                    <p>Manage your account and preferences</p>
+                    
+                    <div class="profile-section">
+                        <h3>🎬 My Collection</h3>
+                        <div class="profile-grid">
+                            <div class="profile-card">
+                                <div class="profile-icon">📚</div>
+                                <h4>My Movies</h4>
+                                <p id="profile-movies">0 movies</p>
+                                <button class="profile-btn go-movies">View Library</button>
+                            </div>
+                            <div class="profile-card">
+                                <div class="profile-icon">❤️</div>
+                                <h4>Favorites</h4>
+                                <p id="profile-favorites">0 favorites</p>
+                                <button class="profile-btn show-favorites">View Favorites</button>
+                            </div>
+                            <div class="profile-card">
+                                <div class="profile-icon">🏷️</div>
+                                <h4>Keywords</h4>
+                                <p id="profile-keywords">0 keywords</p>
+                                <button class="profile-btn my-keywords">View Keywords</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="profile-section">
+                        <h3>⚙️ Actions</h3>
+                        <div class="action-buttons">
+                            <button class="action-btn go-search">🔍 Search New Movies</button>
+                            <button class="action-btn reset">🔄 Reset Library</button>
+                            <button class="action-btn export-data">💾 Export Data</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- HIDDEN SECTIONS (Detail views, Search, etc.) -->
+            <section class="swiper-slide" id="slide-search"></section>
+            <section class="swiper-slide" id="slide-keywords"></section>
+            <section class="swiper-slide" id="slide-details"></section>
+            <section class="swiper-slide" id="slide-favorites"></section>
+        </div>
+    </div>
+
+    <!-- Load libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/swiper@10/swiper-bundle.min.js"></script>
+    <script src="config.js"></script>
+
+    <script>
+    console.log("🎬 Netflix App Starting...");
+
+    // Initialize Swiper
+    window.mySwiper = new Swiper(".swiper", {
+        direction: "horizontal",
+        loop: false,
+        allowTouchMove: true,
+        speed: 500,
+        on: {
+            slideChange: function() {
+                console.log("📍 Slide changed to:", this.activeIndex);
+                updateActiveNav(this.activeIndex);
+            }
+        }
+    });
+
+    /************** DATA **************/
+    let initial_movies = [
+        { title: "Superlópez", director: "Javier Ruiz Caldera", thumbnail: "files/superlopez.png" },
+        { title: "Jurassic Park", director: "Steven Spielberg", thumbnail: "files/jurassicpark.png" },
+        { title: "Interstellar", director: "Christopher Nolan", thumbnail: "files/interstellar.png" }
+    ];
+
+    localStorage.my_movies = localStorage.my_movies || JSON.stringify(initial_movies);
+    localStorage.my_keywords = localStorage.my_keywords || JSON.stringify([]);
+    localStorage.favorites = localStorage.favorites || JSON.stringify([]);
+
+    const cleanKeyword = (keyword) =>
+        keyword.replace(/[^a-zñáéíóú0-9 ]+/igm, "").trim().toLowerCase();
+
+    const processKeywords = (keywords) => {
+        let processed = [];
+        for (let kw of keywords) {
+            let clean = cleanKeyword(kw.name);
+            if (clean && !processed.includes(clean)) processed.push(clean);
+        }
+        return processed;
+    };
+
+    /************** STATS UPDATE **************/
+    function updateStats() {
+        const movies = JSON.parse(localStorage.my_movies);
+        const favs = JSON.parse(localStorage.favorites);
+        const keywords = JSON.parse(localStorage.my_keywords);
+
+        document.getElementById("total-movies").textContent = movies.length;
+        document.getElementById("total-favorites").textContent = favs.length;
+        document.getElementById("total-keywords").textContent = keywords.length;
+
+        document.getElementById("profile-movies").textContent = `${movies.length} movies`;
+        document.getElementById("profile-favorites").textContent = `${favs.length} favorites`;
+        document.getElementById("profile-keywords").textContent = `${keywords.length} keywords`;
+    }
+
+    /************** TOAST NOTIFICATION **************/
+    function showToast(message, type = 'success') {
+        const existingToast = document.querySelector('.toast');
+        if (existingToast) existingToast.remove();
+        
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        
+        setTimeout(() => toast.classList.add('show'), 10);
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    }
+
+    /************** VIEWS **************/
+    const moviesView = (movies) => {
+        let view = '<div class="section-header animate-in"><h2>My Movie Library</h2></div><div class="movies-grid">';
+        
+        for (let i = 0; i < movies.length; i++) {
+            view += `
+                <div class="movie animate-in" style="animation-delay: ${i * 0.1}s">
+                    <div class="movie-img">
+                        <img data-my-id="${i}" src="${movies[i].thumbnail}" alt="${movies[i].title}" />
+                    </div>
+                    <div class="title">${movies[i].title}</div>
+                    <div class="director">${movies[i].director}</div>
+                    <div class="actions">
+                        <button class="show" data-my-id="${i}">👁️ View</button>
+                        <button class="edit" data-my-id="${i}">✏️ Edit</button>
+                        <button class="delete" data-my-id="${i}">🗑️</button>
+                        <button class="add-fav" data-my-id="${i}">❤️</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        view += `</div>
+            <div class="actions main-actions">
+                <button class="new">➕ Add Movie</button>
+                <button class="go-search">🔍 Search TMDb</button>
+            </div>
+        `;
+
+        return view;
+    };
+
+    const editView = (i, movie) => `
+        <div class="form-container animate-in">
+            <h2>Edit Movie</h2>
+            <div class="field">
+                <label>Title</label>
+                <input type="text" id="title" value="${movie.title}">
+            </div>
+            <div class="field">
+                <label>Director</label>
+                <input type="text" id="director" value="${movie.director}">
+            </div>
+            <div class="field">
+                <label>Thumbnail URL</label>
+                <input type="text" id="thumbnail" value="${movie.thumbnail}">
+            </div>
+            <div class="actions">
+                <button class="update" data-my-id="${i}">💾 Update</button>
+                <button class="go-movies">⬅️ Back</button>
+            </div>
+        </div>
+    `;
+
+    const showView = (movie) => `
+        <div class="detail-view animate-in">
+            <h2>${movie.title}</h2>
+            <div class="movie">
+                <div class="movie-img">
+                    <img src="${movie.thumbnail}" alt="${movie.title}">
+                </div>
+                <div class="movie-details">
+                    <div class="field"><strong>Director:</strong> ${movie.director}</div>
+                </div>
+            </div>
+            <div class="actions">
+                <button class="go-movies">⬅️ Back to Movies</button>
+            </div>
+        </div>
+    `;
+
+    const newView = () => `
+        <div class="form-container animate-in">
+            <h2>Add New Movie</h2>
+            <div class="field">
+                <label>Title</label>
+                <input type="text" id="title" placeholder="Enter movie title">
+            </div>
+            <div class="field">
+                <label>Director</label>
+                <input type="text" id="director" placeholder="Enter director name">
+            </div>
+            <div class="field">
+                <label>Thumbnail URL</label>
+                <input type="text" id="thumbnail" placeholder="Enter image URL">
+            </div>
+            <div class="actions">
+                <button class="create">➕ Create</button>
+                <button class="go-movies">⬅️ Back</button>
+            </div>
+        </div>
+    `;
+
+    const searchView = () => `
+        <div class="search-container animate-in">
+            <h2>Search Movies on TMDb</h2>
+            <div class="search-box">
+                <input id="query" type="text" placeholder="Search for a movie..." />
+                <button class="search">🔍 Search</button>
+            </div>
+            <div id="search-status"></div>
+            <div id="results"></div>
+            <button class="go-movies back-btn">⬅️ Back to Library</button>
+        </div>
+    `;
+
+    const resultsView = (results) => {
+        if (!results || results.length === 0) {
+            return '<p class="no-results">No movies found. Try another search!</p>';
+        }
+        
+        return '<div class="movies-grid">' + results.map((m, idx) => `
+            <div class="movie animate-in" style="animation-delay: ${idx * 0.05}s">
+                <div class="movie-img">
+                    <img src="https://image.tmdb.org/t/p/w200${m.poster_path}" alt="${m.title}">
+                </div>
+                <div class="title">${m.title}</div>
+                <div class="actions">
+                    <button class="add-from-api" 
+                        data-title="${m.title}" 
+                        data-thumbnail="https://image.tmdb.org/t/p/w200${m.poster_path}">
+                        ➕ Add
+                    </button>
+                    <button class="keywords" data-movie-id="${m.id}">🏷️ Keywords</button>
+                </div>
+            </div>
+        `).join("") + '</div>';
+    };
+
+    const keywordsView = (movieId, keywords) => `
+        <div class="keywords-container animate-in">
+            <h2>Movie Keywords</h2>
+            ${keywords.length > 0 ? keywords.map(k => `
+                <div class="keyword-item">
+                    <span>${k}</span>
+                    <button class="add-keyword" data-keyword="${k}">➕ Add</button>
+                </div>
+            `).join("") : '<p>No keywords found.</p>'}
+            <button class="go-search">⬅️ Back</button>
+        </div>
+    `;
+
+    const myKeywordsView = () => {
+        let list = JSON.parse(localStorage.my_keywords);
+        return `
+            <div class="keywords-container animate-in">
+                <h2>My Saved Keywords</h2>
+                ${list.length > 0 ? list.map((k, i) => `
+                    <div class="keyword-item">
+                        <span>${k}</span>
+                        <button class="remove-keyword" data-id="${i}">❌ Remove</button>
+                    </div>
+                `).join("") : '<p>No keywords saved yet.</p>'}
+                <button class="go-profile">⬅️ Back to Profile</button>
+            </div>
+        `;
+    };
+
+    const favoritesView = () => {
+        let favs = JSON.parse(localStorage.favorites);
+
+        if (favs.length === 0) {
+            return `
+                <div class="empty-state animate-in">
+                    <h2>❤️ No favorites yet</h2>
+                    <p>Add movies to your favorites from the Movies section!</p>
+                    <button class="go-movies">⬅️ Back to Movies</button>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="animate-in">
+                <h2>❤️ My Favorites</h2>
+                <p class="drag-hint">💡 Drag movies to reorder them - drop between items!</p>
+                <div class="movies-grid" id="favorites-grid">
+                    ${favs.map((m, i) => `
+                        <div class="movie draggable" data-index="${i}">
+                            <div class="movie-img">
+                                <img src="${m.thumbnail}" alt="${m.title}">
+                            </div>
+                            <div class="title">${m.title}</div>
+                            <div class="actions">
+                                <button class="remove-fav" data-id="${i}">💔 Remove</button>
+                            </div>
+                        </div>
+                    `).join("")}
+                </div>
+                <button class="go-profile">⬅️ Back to Profile</button>
+            </div>
+        `;
+    };
+
+    /************** ANIMATIONS BASED ON animation-type ATTRIBUTE **************/
+    function triggerAnimation(type, targets) {
+        console.log("🎨 Triggering animation:", type);
+        
+        if (type === "fade") {
+            anime({
+                targets: targets,
+                opacity: [0, 1],
+                duration: 600,
+                easing: "easeOutQuad"
+            });
+        }
+        
+        if (type === "slide-up") {
+            anime({
+                targets: targets,
+                opacity: [0, 1],
+                translateY: [50, 0],
+                duration: 600,
+                easing: "easeOutExpo"
+            });
+        }
+        
+        if (type === "zoom") {
+            anime({
+                targets: targets,
+                opacity: [0, 1],
+                scale: [0.8, 1],
+                duration: 500,
+                easing: "easeOutBack"
+            });
+        }
+        
+        if (type === "cascade") {
+            anime({
+                targets: targets,
+                opacity: [0, 1],
+                translateY: [30, 0],
+                duration: 500,
+                delay: anime.stagger(100),
+                easing: "easeOutQuad"
+            });
+        }
+    }
+
+    function animateSlideIn() {
+        anime({
+            targets: ".swiper-slide-active .animate-in",
+            opacity: [0, 1],
+            translateY: [30, 0],
+            duration: 600,
+            easing: "easeOutExpo",
+            delay: anime.stagger(100)
+        });
+    }
+
+    /************** CONTROLLERS **************/
+    const homeContr = () => {
+        mySwiper.slideTo(0);
+        updateStats();
+        animateSlideIn();
+    };
+
+    const moviesContr = () => {
+        const movies = JSON.parse(localStorage.my_movies);
+        document.getElementById("movies-content").innerHTML = moviesView(movies);
+        mySwiper.slideTo(1);
+        animateSlideIn();
+    };
+
+    const profileContr = () => {
+        mySwiper.slideTo(2);
+        updateStats();
+        animateSlideIn();
+    };
+
+    const resetContr = () => {
+        if (!confirm("Reset your movie library to defaults?")) return;
+        localStorage.my_movies = JSON.stringify(initial_movies);
+        moviesContr();
+        updateStats();
+        showToast("Library reset to defaults", 'info');
+    };
+
+    const showFavoritesContr = () => {
+        document.getElementById("slide-favorites").innerHTML = favoritesView();
+        mySwiper.slideTo(6);
+        setTimeout(() => {
+            initDragAndDrop();
+            animateSlideIn();
+        }, 100);
+    };
+
+    const showContr = (i) => {
+        let movies = JSON.parse(localStorage.my_movies);
+        document.getElementById("slide-details").innerHTML = showView(movies[i]);
+        mySwiper.slideTo(5);
+        animateSlideIn();
+    };
+
+    const editContr = (i) => {
+        let movies = JSON.parse(localStorage.my_movies);
+        document.getElementById("slide-details").innerHTML = editView(i, movies[i]);
+        mySwiper.slideTo(5);
+        animateSlideIn();
+    };
+
+    const newContr = () => {
+        document.getElementById("slide-details").innerHTML = newView();
+        mySwiper.slideTo(5);
+        animateSlideIn();
+    };
+
+    const createContr = () => {
+        let title = document.getElementById("title").value.trim();
+        let director = document.getElementById("director").value.trim();
+        let thumbnail = document.getElementById("thumbnail").value.trim();
+
+        if (!title || !director || !thumbnail) {
+            showToast("Please fill all fields!", 'error');
+            return;
+        }
+
+        let movies = JSON.parse(localStorage.my_movies);
+        
+        if (movies.some(m => m.title.toLowerCase() === title.toLowerCase())) {
+            showToast(`"${title}" is already in your library!`, 'error');
+            return;
+        }
+        
+        movies.push({ title, director, thumbnail });
+        localStorage.my_movies = JSON.stringify(movies);
+
+        anime({
+            targets: ".form-container",
+            scale: [1, 1.05, 1],
+            duration: 300,
+            complete: () => {
+                showToast(`"${title}" created successfully!`, 'success');
+                moviesContr();
+                updateStats();
+            }
+        });
+    };
+
+    const deleteContr = (i) => {
+        let movies = JSON.parse(localStorage.my_movies);
+        if (!confirm(`Delete "${movies[i].title}"?`)) return;
+
+        movies.splice(i, 1);
+        localStorage.my_movies = JSON.stringify(movies);
+        moviesContr();
+        updateStats();
+        showToast("Movie deleted", 'info');
+    };
+
+    const showSearch = () => {
+        document.getElementById("slide-search").innerHTML = searchView();
+        mySwiper.slideTo(3);
+        animateSlideIn();
+    };
+
+    const searchContr = () => {
+        let q = document.getElementById("query").value.trim();
+        let status = document.getElementById("search-status");
+
+        if (!q) {
+            status.textContent = "⚠️ Please enter a movie name";
+            return;
+        }
+
+        status.innerHTML = '<div class="loading">🔍 Searching...</div>';
+
+        fetch(`https://api.themoviedb.org/3/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(q)}`)
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById("results").innerHTML = resultsView(data.results || []);
+                status.textContent = "";
+                animateSlideIn();
+            })
+            .catch(err => {
+                status.textContent = "❌ Search failed. Check your API key.";
+                console.error("Error:", err);
+            });
+    };
+
+    const addFromAPIContr = (movie) => {
+        let movies = JSON.parse(localStorage.my_movies);
+        
+        if (movies.some(m => m.title.toLowerCase() === movie.title.toLowerCase())) {
+            showToast(`"${movie.title}" is already in your library!`, 'error');
+            return;
+        }
+        
+        movies.push(movie);
+        localStorage.my_movies = JSON.stringify(movies);
+        
+        const btn = event.target;
+        anime({
+            targets: btn,
+            scale: [1, 1.2, 1],
+            backgroundColor: ['#6200ee', '#4CAF50', '#6200ee'],
+            duration: 500,
+            easing: "easeInOutQuad"
+        });
+        
+        showToast(`"${movie.title}" added to your library!`, 'success');
+        updateStats();
+    };
+
+    const keywordsContr = (id) => {
+        fetch(`https://api.themoviedb.org/3/movie/${id}/keywords?api_key=${TMDB_API_KEY}`)
+            .then(r => r.json())
+            .then(d => {
+                let cleaned = processKeywords(d.keywords || []);
+                document.getElementById("slide-keywords").innerHTML = keywordsView(id, cleaned);
+                mySwiper.slideTo(4);
+                animateSlideIn();
+            });
+    };
+
+    const addFavoriteContr = (i) => {
+        let movies = JSON.parse(localStorage.my_movies);
+        let favs = JSON.parse(localStorage.favorites);
+        
+        const btn = document.querySelector(`button.add-fav[data-my-id="${i}"]`);
+        
+        anime({
+            targets: btn,
+            scale: [1, 1.3, 1],
+            rotate: [0, 10, -10, 0],
+            duration: 500,
+            easing: "easeInOutQuad"
+        });
+
+        if (!favs.some(f => f.title === movies[i].title)) {
+            favs.push(movies[i]);
+            localStorage.favorites = JSON.stringify(favs);
+            showToast(`"${movies[i].title}" added to favorites!`, 'success');
+            updateStats();
+        } else {
+            showToast("Already in favorites!", 'error');
+        }
+    };
+
+    const removeFavoriteContr = (i) => {
+        let favs = JSON.parse(localStorage.favorites);
+        favs.splice(i, 1);
+        localStorage.favorites = JSON.stringify(favs);
+        showFavoritesContr();
+        updateStats();
+    };
+
+    const showMyKeywords = () => {
+        document.getElementById("slide-keywords").innerHTML = myKeywordsView();
+        mySwiper.slideTo(4);
+        animateSlideIn();
+    };
+
+    const updateContr = (i) => {
+        let movies = JSON.parse(localStorage.my_movies);
+
+        movies[i].title = document.getElementById("title").value.trim();
+        movies[i].director = document.getElementById("director").value.trim();
+        movies[i].thumbnail = document.getElementById("thumbnail").value.trim();
+
+        localStorage.my_movies = JSON.stringify(movies);
+        
+        anime({
+            targets: ".form-container",
+            scale: [1, 1.05, 1],
+            duration: 300,
+            complete: () => {
+                showToast("Movie updated!", 'success');
+                moviesContr();
+            }
+        });
+    };
+
+    const exportDataContr = () => {
+        const data = {
+            movies: JSON.parse(localStorage.my_movies),
+            favorites: JSON.parse(localStorage.favorites),
+            keywords: JSON.parse(localStorage.my_keywords)
+        };
+        
+        const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'my-netflix-data.json';
+        a.click();
+        
+        showToast("Data exported successfully!", 'success');
+    };
+
+    /************** NAVIGATION **************/
+    function updateActiveNav(slideIndex) {
+        document.querySelectorAll(".nav-link").forEach(link => link.classList.remove("active"));
+        
+        if (slideIndex <= 2) {
+            document.querySelectorAll(".nav-link")[slideIndex]?.classList.add("active");
+        }
+    }
+
+    /************** ROUTER WITH NAVIGATION-TYPE AND ANIMATION-TYPE **************/
+    const match = (ev, sel) => ev.target.matches(sel);
+    const id = (ev) => Number(ev.target.dataset.myId);
+
+    document.addEventListener("click", (ev) => {
+        console.log("Clicked:", ev.target.className, ev.target.dataset);
+        
+        // Prevent default for nav links
+        if (match(ev, ".nav-link")) {
+            ev.preventDefault();
+            
+            const slideNum = Number(ev.target.dataset.slide);
+            const navType = ev.target.getAttribute("navigation-type");
+            const animType = ev.target.getAttribute("animation-type");
+            
+            console.log("📍 Navigation:", navType, "Animation:", animType);
+            
+            // Navigate based on navigation-type
+            if (navType === "home" || slideNum === 0) homeContr();
+            else if (navType === "movies" || slideNum === 1) moviesContr();
+            else if (navType === "profile" || slideNum === 2) profileContr();
+            
+            // Trigger animation based on animation-type
+            setTimeout(() => {
+                if (animType) {
+                    triggerAnimation(animType, ".swiper-slide-active .animate-in");
+                }
+            }, 100);
+        }
+        else if (match(ev, ".go-movies")) {
+            ev.preventDefault();
+            const animType = ev.target.getAttribute("animation-type") || "slide-up";
+            moviesContr();
+            setTimeout(() => triggerAnimation(animType, ".swiper-slide-active .animate-in"), 100);
+        }
+        else if (match(ev, ".go-profile")) {
+            ev.preventDefault();
+            const animType = ev.target.getAttribute("animation-type") || "zoom";
+            profileContr();
+            setTimeout(() => triggerAnimation(animType, ".swiper-slide-active .animate-in"), 100);
+        }
+        else if (match(ev, ".go-search")) {
+            ev.preventDefault();
+            const animType = ev.target.getAttribute("animation-type") || "cascade";
+            showSearch();
+            setTimeout(() => triggerAnimation(animType, ".swiper-slide-active .animate-in"), 100);
+        }
+        else if (match(ev, ".show")) showContr(id(ev));
+        else if (match(ev, ".edit")) editContr(id(ev));
+        else if (match(ev, ".update")) updateContr(id(ev));
+        else if (match(ev, ".delete")) deleteContr(id(ev));
+        else if (match(ev, ".new")) newContr();
+        else if (match(ev, ".create")) createContr();
+        else if (match(ev, ".search")) searchContr();
+        else if (match(ev, ".keywords")) keywordsContr(ev.target.dataset.movieId);
+        else if (match(ev, ".my-keywords")) showMyKeywords();
+        else if (match(ev, ".add-fav")) addFavoriteContr(id(ev));
+        else if (match(ev, ".reset")) resetContr();
+        else if (match(ev, ".remove-fav")) removeFavoriteContr(ev.target.dataset.id);
+        else if (match(ev, ".show-favorites")) showFavoritesContr();
+        else if (match(ev, ".export-data")) exportDataContr();
+        else if (match(ev, ".add-keyword")) {
+            let list = JSON.parse(localStorage.my_keywords);
+            let k = ev.target.dataset.keyword;
+            if (!list.includes(k)) {
+                list.push(k);
+                localStorage.my_keywords = JSON.stringify(list);
+                showToast(`Keyword "${k}" added!`, 'success');
+                updateStats();
+            } else {
+                showToast("Keyword already exists!", 'error');
+            }
+        }
+        else if (match(ev, ".remove-keyword")) {
+            let list = JSON.parse(localStorage.my_keywords);
+            list.splice(ev.target.dataset.id, 1);
+            localStorage.my_keywords = JSON.stringify(list);
+            showMyKeywords();
+            updateStats();
+        }
+        else if (match(ev, ".add-from-api")) {
+            const movie = {
+                title: ev.target.dataset.title,
+                thumbnail: ev.target.dataset.thumbnail,
+                director: "Unknown"
+            };
+            addFromAPIContr(movie);
+        }
+    });
+
+    /************** IMPROVED DRAG & DROP - INSERT BETWEEN ITEMS **************/
+    function initDragAndDrop() {
+        // Unset any previous drag handlers
+        interact('.draggable').unset();
+        
+        let draggedElement = null;
+        let draggedIndex = null;
+        
+        interact('.draggable').draggable({
+            listeners: {
+                start(event) {
+                    draggedElement = event.target;
+                    draggedIndex = Number(event.target.dataset.index);
+                    
+                    event.target.classList.add('dragging');
+                    event.target.style.zIndex = '1000';
+                    
+                    console.log('🎯 Started dragging index:', draggedIndex);
+                },
+
+                move(event) {
+                    const x = (parseFloat(event.target.getAttribute('data-x')) || 0) + event.dx;
+                    const y = (parseFloat(event.target.getAttribute('data-y')) || 0) + event.dy;
+
+                    event.target.style.transform = `translate(${x}px, ${y}px)`;
+                    event.target.setAttribute('data-x', x);
+                    event.target.setAttribute('data-y', y);
+                    
+                    // Highlight drop zones
+                    highlightDropZone(event.clientX, event.clientY, draggedIndex);
+                },
+
+                end(event) {
+                    event.target.classList.remove('dragging');
+                    event.target.style.zIndex = '';
+                    
+                    // Determine where to insert based on current mouse position
+                    const dropPosition = getDropPosition(event.clientY, draggedIndex);
+                    
+                    console.log('🎯 Dropping at position:', dropPosition, 'from:', draggedIndex);
+                    
+                    // Reset visual transform
+                    event.target.style.transform = '';
+                    event.target.removeAttribute('data-x');
+                    event.target.removeAttribute('data-y');
+                    
+                    // Clear all drop zone highlights
+                    document.querySelectorAll('.drop-zone-active').forEach(el => {
+                        el.classList.remove('drop-zone-active');
+                    });
+                    
+                    // Perform the reorder if needed
+                    if (dropPosition !== null && dropPosition !== draggedIndex) {
+                        reorderFavorites(draggedIndex, dropPosition);
+                    }
+                    
+                    draggedElement = null;
+                    draggedIndex = null;
+                }
+            },
+            inertia: false
+        });
+    }
+    
+    function highlightDropZone(mouseX, mouseY, draggedIndex) {
+        const allDraggables = Array.from(document.querySelectorAll('.draggable'));
+        
+        // Clear previous highlights
+        allDraggables.forEach(el => el.classList.remove('drop-zone-active'));
+        
+        // Find closest non-dragged element
+        let closestElement = null;
+        let closestDistance = Infinity;
+        
+        allDraggables.forEach(el => {
+            const index = Number(el.dataset.index);
+            if (index === draggedIndex) return; // Skip dragged element
+            
+            const rect = el.getBoundingClientRect();
+            const centerY = rect.top + rect.height / 2;
+            const distance = Math.abs(mouseY - centerY);
+            
+            if (distance < closestDistance) {
+                closestDistance = distance;
+                closestElement = el;
+            }
+        });
+        
+        if (closestElement) {
+            closestElement.classList.add('drop-zone-active');
+        }
+    }
+    
+    function getDropPosition(mouseY, draggedIndex) {
+        const allDraggables = Array.from(document.querySelectorAll('.draggable'));
+        
+        // Get all elements sorted by their visual position
+        const sortedElements = allDraggables
+            .map(el => ({
+                element: el,
+                index: Number(el.dataset.index),
+                rect: el.getBoundingClientRect()
+            }))
+            .sort((a, b) => a.rect.top - b.rect.top);
+        
+        // Find where we should insert based on mouse Y position
+        let newPosition = 0;
+        
+        for (let i = 0; i < sortedElements.length; i++) {
+            const item = sortedElements[i];
+            
+            // Skip the dragged item itself
+            if (item.index === draggedIndex) continue;
+            
+            const midY = item.rect.top + item.rect.height / 2;
+            
+            // If mouse is above this item's middle, insert before it
+            if (mouseY < midY) {
+                // Count how many valid items come before this position
+                newPosition = sortedElements.slice(0, i).filter(el => el.index !== draggedIndex).length;
+                return newPosition;
+            }
+        }
+        
+        // If we're below all items, insert at the end
+        newPosition = sortedElements.filter(el => el.index !== draggedIndex).length;
+        return newPosition;
+    }
+    
+    function reorderFavorites(fromIndex, toIndex) {
+        let favs = JSON.parse(localStorage.favorites);
+        
+        console.log('📦 Moving from position', fromIndex, 'to position', toIndex);
+        console.log('Before:', favs.map((f, i) => `${i}: ${f.title}`));
+        
+        // Remove the item from its original position
+        const [movedItem] = favs.splice(fromIndex, 1);
+        
+        // Insert at new position
+        // If moving forward, splice already adjusted the indices
+        favs.splice(toIndex, 0, movedItem);
+        
+        console.log('After:', favs.map((f, i) => `${i}: ${f.title}`));
+        
+        // Save and refresh
+        localStorage.favorites = JSON.stringify(favs);
+        showFavoritesContr();
+        
+        showToast(`Moved "${movedItem.title}" to position ${toIndex + 1}! 🎬`, 'success');
+    }
+
+    /************** START APP **************/
+    document.addEventListener("DOMContentLoaded", () => {
+        console.log("🚀 Netflix App Loaded!");
+        homeContr();
+    });
+
+    </script>
+
+</body>
+</html>
